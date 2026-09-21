@@ -9,6 +9,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
+      LOOP_COUNT: 60
 
     steps:
       - name: Check pull request
@@ -16,7 +17,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          for i in {1..5}; do
+          for i in {1..$LOOP_COUNT}; do
             PR=$(gh api \
               "/repos/${{ github.repository }}/pulls/$PR_NUMBER")
 
@@ -28,7 +29,7 @@ jobs:
               break
             fi
 
-            echo "Waiting for mergeable state calculation... ($i/5)"
+            echo "Waiting for mergeable state calculation... ($i/$LOOP_COUNT)"
             sleep 2
           done
 
