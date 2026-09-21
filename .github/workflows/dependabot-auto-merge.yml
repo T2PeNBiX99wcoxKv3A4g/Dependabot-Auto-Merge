@@ -27,6 +27,7 @@ jobs:
             if [ "$MERGEABLE" != "null" ] && [ "$MERGEABLE_STATE" != "unknown" ]; then
               break
             fi
+
             echo "Waiting for mergeable state calculation... ($i/5)"
             sleep 2
           done
@@ -45,6 +46,14 @@ jobs:
 
           echo "Recreate count: $RECREATE_COUNT"
           echo "recreate_count=$RECREATE_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if mergeable state is still unknown
+        if: >
+          steps.check.outputs.mergeable == 'null' ||
+          steps.check.outputs.mergeable_state == 'unknown'
+        run: |
+          echo "Unable to determine pull request mergeability."
+          exit 1
 
       - name: Comment on non-Dependabot pull request
         if: steps.check.outputs.author != 'dependabot[bot]'
@@ -97,14 +106,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           gh pr review "$PR_NUMBER" \
+            --repo "$GH_REPO" \
             --approve \
-            --body 'Automatically approved because this pull request was opened by Dependabot.' || gh api \
-            --method POST \
-            "/repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews" \
-            -f event='APPROVE' \
-            -f body='Automatically approved because this pull request was opened by Dependabot.'
+            --body 'Automatically approved because this pull request was opened by Dependabot.'
 
-      - name: Merge or enable auto-merge for Dependabot pull request
+      - name: Enable auto-merge for Dependabot pull request
         if: >
           steps.check.outputs.author == 'dependabot[bot]' &&
           steps.check.outputs.mergeable != 'false' &&
@@ -112,23 +118,11 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          echo "Processing merge for Dependabot PR #$PR_NUMBER..."
+          echo "Enabling auto-merge for Dependabot PR #$PR_NUMBER..."
 
-          # Try enabling GitHub native auto-merge first
-          if gh pr merge "$PR_NUMBER" --auto --merge; then
-            echo "Auto-merge enabled successfully for PR #$PR_NUMBER."
-          else
-            echo "Auto-merge could not be enabled directly (e.g. unstable status or direct merge available). Falling back to direct merge workflow..."
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GH_REPO" \
+            --auto \
+            --merge
 
-            # If CI checks exist, wait for them to finish
-            if gh pr checks "$PR_NUMBER" >/dev/null 2>&1; then
-              echo "Waiting for CI checks to complete..."
-              if ! gh pr checks "$PR_NUMBER" --watch --fail-fast; then
-                echo "CI checks failed or were cancelled. Aborting merge."
-                exit 1
-              fi
-            fi
-
-            echo "Executing direct merge for PR #$PR_NUMBER..."
-            gh pr merge "$PR_NUMBER" --merge
-          fi
+          echo "Auto-merge enabled successfully for PR #$PR_NUMBER."
