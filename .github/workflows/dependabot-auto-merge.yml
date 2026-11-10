@@ -41,12 +41,12 @@ jobs:
           echo "mergeable=$MERGEABLE" >> "$GITHUB_OUTPUT"
           echo "mergeable_state=$MERGEABLE_STATE" >> "$GITHUB_OUTPUT"
 
-          RECREATE_COUNT=$(gh api \
+          REBASE_COUNT=$(gh api \
             "/repos/${{ github.repository }}/issues/$PR_NUMBER/comments?per_page=100" \
-            --jq '[.[] | select(.body | contains("@dependabot recreate"))] | length')
+            --jq '[.[] | select(.body | contains("@dependabot rebase"))] | length')
 
-          echo "Recreate count: $RECREATE_COUNT"
-          echo "recreate_count=$RECREATE_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Rebase count: $REBASE_COUNT"
+          echo "rebase_count=$REBASE_COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Stop if mergeable state is still unknown
         if: >
@@ -66,21 +66,21 @@ jobs:
             "/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
             -f body='This pull request will not be automatically merged because it was not opened by Dependabot.'
 
-      - name: Request recreate on merge conflict
+      - name: Request rebase on merge conflict
         if: >
           steps.check.outputs.author == 'dependabot[bot]' &&
           (
             steps.check.outputs.mergeable == 'false' ||
             steps.check.outputs.mergeable_state == 'dirty'
           ) &&
-          steps.check.outputs.recreate_count == '0'
+          steps.check.outputs.rebase_count == '0'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           gh api \
             --method POST \
             "/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
-            -f body='@dependabot recreate'
+            -f body='@dependabot rebase'
 
       - name: Comment on merge conflict
         if: >
@@ -89,7 +89,7 @@ jobs:
             steps.check.outputs.mergeable == 'false' ||
             steps.check.outputs.mergeable_state == 'dirty'
           ) &&
-          steps.check.outputs.recreate_count != '0'
+          steps.check.outputs.rebase_count != '0'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
